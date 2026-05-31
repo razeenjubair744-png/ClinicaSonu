@@ -10,6 +10,11 @@ from bs4 import BeautifulSoup
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage, SystemMessage
+import base64
+from dotenv import load_dotenv, find_dotenv
+
+load_dotenv(find_dotenv())
 
 app = FastAPI(title="ClinicaSummary API")
 
@@ -47,6 +52,8 @@ class ClinicalSynthesis(BaseModel):
     vitals_and_labs: List[LabValue] = Field(default_factory=list, description="Extracted quantitative vital signs and lab values")
     timeline: List[TimelineEvent] = Field(description="Chronological timeline of medical events")
     differential_diagnosis: List[DiagnosisItem] = Field(default_factory=list, description="Ranked list of potential diagnoses")
+    recommended_medications: List[str] = Field(default_factory=list, description="List of recommended standard-of-care medications/treatments based on diagnoses")
+    icd10_codes: List[str] = Field(default_factory=list, description="List of highly likely ICD-10 billing codes for the identified conditions")
     potential_contraindications: List[str] = Field(description="List of medical anomalies, risks, or contraindications")
     action_plan: List[str] = Field(default_factory=list, description="Recommended next steps, lifestyle changes, or treatments")
     glossary: List[GlossaryItem] = Field(default_factory=list, description="Definitions of complex medical jargon found in the report")
@@ -61,9 +68,11 @@ You must extract and generate:
 2. An Automated Triage Severity Score (Critical, Urgent, Moderate, or Routine).
 3. A Vitals & Lab Values tracker (flagging abnormal values).
 4. A Differential Diagnosis (DDx) ranking potential conditions with probability and reasoning.
-5. A Clinical Action Plan containing recommended next steps.
+5. Action plan and potential contraindications or risk factors.
 6. A Patient-Friendly Medical Glossary.
 7. Suggested Follow-up Questions.
+8. Recommended standard-of-care medications or treatments based on the diagnoses.
+9. Highly likely ICD-10 billing codes for the identified conditions (e.g., 'J01.90 - Acute sinusitis').
 
 Ensure all data is grounded in the source text. Do not hallucinate symptoms.
 """
@@ -126,8 +135,11 @@ async def process_case(file: Optional[UploadFile] = File(None), url: Optional[st
                 text = transcript.text
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Failed to transcribe audio: {str(e)}")
+        elif filename.endswith(('.jpg', '.jpeg', '.png')):
+            # We'll handle this in the LLM call directly, just set text to a placeholder
+            text = "IMAGE_UPLOAD"
         else:
-            raise HTTPException(status_code=400, detail="Only PDF and Audio files (.mp3, .wav, .m4a) are supported.")
+            raise HTTPException(status_code=400, detail="Only PDF, Image (.jpg/.png), and Audio files (.mp3/.wav/.m4a) are supported.")
 
     if not text.strip():
         raise HTTPException(status_code=400, detail="The extracted content appears to be empty.")
@@ -136,20 +148,38 @@ async def process_case(file: Optional[UploadFile] = File(None), url: Optional[st
         llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=api_key)
         structured_llm = llm.with_structured_output(ClinicalSynthesis)
         
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", SYSTEM_PROMPT),
-            ("user", "Please analyze the following medical document and extract the required information:\n\n{text}")
-        ])
-        
-        chain = prompt | structured_llm
-        
-        result = chain.invoke({"text": text[:100000]}) # Limit text length as a basic safety measure
-        
-        # We also want to return the raw text so the frontend can pass it to the /api/chat endpoint
-        return {
-            **result.dict(),
-            "raw_context_text": text
-        }
+        if text == "IMAGE_UPLOAD" and file:
+            # We already read the file into 'contents' at line 114
+            image_b64 = base64.b64encode(contents).decode('utf-8')
+            ext = file.filename.split('.')[-1].lower()
+            mime_type = "image/png" if ext == 'png' else "image/jpeg"
+            
+            messages = [
+                SystemMessage(content=SYSTEM_PROMPT),
+                HumanMessage(content=[
+                    {"type": "text", "text": "Please analyze this medical image, extract its text, and synthesize the required information."},
+                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_b64}"}}
+                ])
+            ]
+            result = structured_llm.invoke(messages)
+            return {
+                **result.dict(),
+                "raw_context_text": "Extracted medical data from image."
+            }
+        else:
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", SYSTEM_PROMPT),
+                ("user", "Please analyze the following medical document and extract the required information:\n\n{text}")
+            ])
+            
+            chain = prompt | structured_llm
+            result = chain.invoke({"text": text[:100000]}) # Limit text length as a basic safety measure
+            
+            # We also want to return the raw text so the frontend can pass it to the /api/chat endpoint
+            return {
+                **result.dict(),
+                "raw_context_text": text
+            }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process document via AI: {str(e)}")
 

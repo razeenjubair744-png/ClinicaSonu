@@ -6,6 +6,9 @@
   .glass-card {
     @apply bg-white border border-claude-border shadow-soft rounded-2xl transition-all duration-300;
   }
+  .dark .glass-card {
+    @apply bg-solarized-base03 border-solarized-base01/30 shadow-none;
+  }
   .glass-card:hover {
     @apply shadow-float -translate-y-1;
   }
@@ -15,6 +18,27 @@ body {
   margin: 0;
   background-image: radial-gradient(rgba(218, 119, 86, 0.08) 1px, transparent 1px);
   background-size: 24px 24px;
+  @apply bg-white text-solarized-base00 transition-colors duration-500;
+}
+
+.dark body {
+  background-image: radial-gradient(rgba(147, 161, 161, 0.05) 1px, transparent 1px);
+  @apply bg-[#001e26] text-solarized-base1;
+}
+
+@keyframes scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(calc(-50% - 2rem)); }
+}
+
+.marquee-container {
+  display: flex;
+  width: max-content;
+  animation: scroll 20s linear infinite;
+}
+
+.marquee-container:hover {
+  animation-play-state: paused;
 }
 
 @media print {

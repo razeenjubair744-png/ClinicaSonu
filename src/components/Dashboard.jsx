@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { Upload, AlertTriangle, FileText, Activity, Clock, CheckCircle2, ArrowRight, Sparkles, ListChecks, BookOpen, MessageCircleQuestion, Link as LinkIcon, Mic, Stethoscope, HeartPulse, Printer, MessageSquare, Send } from 'lucide-react';
+import { Upload, AlertTriangle, FileText, Activity, Clock, CheckCircle2, ArrowRight, Sparkles, ListChecks, BookOpen, MessageCircleQuestion, Link as LinkIcon, Mic, Stethoscope, HeartPulse, Printer, MessageSquare, Send, ShieldCheck, Lock, Server, ChevronDown, ChevronUp, Star, Building, Zap, Moon, Sun, Pill, FileCode2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { motion } from 'framer-motion';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -21,16 +23,73 @@ const SAMPLE_CASES = [
   }
 ];
 
-export default function Dashboard({ onNavigate }) {
+export default function Dashboard({ onNavigate, isDark, toggleTheme }) {
   const [file, setFile] = useState(null);
   const [url, setUrl] = useState('');
   const [inputType, setInputType] = useState('file');
+  const [rawText, setRawText] = useState('');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
+  const [activeFaq, setActiveFaq] = useState(null);
   const [error, setError] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const getChartData = (ddxList) => {
+    if (!ddxList) return [];
+    return ddxList.map(ddx => ({
+      name: ddx.condition.length > 20 ? ddx.condition.substring(0, 20) + '...' : ddx.condition,
+      fullCondition: ddx.condition,
+      probabilityValue: ddx.probability.toLowerCase() === 'high' ? 90 : ddx.probability.toLowerCase() === 'medium' ? 50 : 20,
+      probability: ddx.probability,
+      fill: ddx.probability.toLowerCase() === 'high' ? '#dc322f' : ddx.probability.toLowerCase() === 'medium' ? '#cb4b16' : '#b58900'
+    }));
+  };
+
   const [chatQuery, setChatQuery] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
   const [isChatting, setIsChatting] = useState(false);
+
+  // Dictation State
+  const [isDictating, setIsDictating] = useState(false);
+  const [dictatedText, setDictatedText] = useState('');
+  const recognitionRef = useRef(null);
+
+  useEffect(() => {
+    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
+      
+      recognitionRef.current.onresult = (event) => {
+        let fullTranscript = '';
+        for (let i = 0; i < event.results.length; ++i) {
+           fullTranscript += event.results[i][0].transcript;
+        }
+        setDictatedText(fullTranscript);
+      };
+      
+      recognitionRef.current.onerror = (event) => {
+        console.error("Speech recognition error", event.error);
+        setIsDictating(false);
+      };
+      
+      recognitionRef.current.onend = () => {
+        setIsDictating(false);
+      };
+    }
+  }, []);
+
+  const toggleDictation = () => {
+    if (isDictating) {
+      recognitionRef.current?.stop();
+      setIsDictating(false);
+    } else {
+      setDictatedText('');
+      recognitionRef.current?.start();
+      setIsDictating(true);
+    }
+  };
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -125,8 +184,27 @@ export default function Dashboard({ onNavigate }) {
     return 'bg-solarized-green text-white';
   };
 
+  const staggerContainer = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.15
+      }
+    }
+  };
+
+  const fadeInUp = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+  };
+
   return (
-    <div className="container mx-auto p-6 max-w-6xl font-sans text-solarized-base00">
+    <motion.div 
+      initial="hidden"
+      animate="show"
+      className="container mx-auto p-6 max-w-6xl font-sans text-solarized-base00"
+    >
       <header className="mb-4 pt-8 flex items-center justify-between z-10 relative">
         <div>
           <h1 
@@ -139,25 +217,49 @@ export default function Dashboard({ onNavigate }) {
             ClinicaSummary
           </h1>
         </div>
-        <nav>
+        <nav className="flex items-center gap-8">
+          <button 
+            onClick={() => onNavigate && onNavigate('home')} 
+            className="text-solarized-base1 hover:text-claude-accent font-medium transition-colors"
+          >
+            Home
+          </button>
+          <button 
+            onClick={() => onNavigate && onNavigate('about')} 
+            className="text-solarized-base1 hover:text-claude-accent font-medium transition-colors"
+          >
+            About
+          </button>
           <button 
             onClick={() => onNavigate && onNavigate('docs')} 
             className="text-solarized-base1 hover:text-claude-accent font-medium transition-colors"
           >
             Docs
           </button>
+          <button 
+            onClick={() => onNavigate && onNavigate('contact')} 
+            className="px-4 py-2 bg-claude-bg border border-claude-border rounded-lg text-solarized-base01 hover:bg-claude-hover hover:border-claude-accent font-medium transition-all dark:bg-solarized-base03 dark:border-solarized-base01/30 dark:text-solarized-base1 dark:hover:border-solarized-base1"
+          >
+            Contact Sales
+          </button>
+          <button 
+            onClick={toggleTheme} 
+            className="p-2 text-solarized-base1 hover:text-claude-accent transition-colors"
+          >
+            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
         </nav>
       </header>
 
       {!data && !loading && (
-        <div className="animate-in fade-in duration-700">
+        <motion.div variants={staggerContainer} initial="hidden" animate="show" className="animate-in fade-in duration-700">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 mt-12 items-center">
           
-          <div className="space-y-8 animate-in fade-in slide-in-from-left-8 duration-700">
-            <h1 className="text-5xl sm:text-6xl font-serif font-bold text-solarized-base01 leading-tight tracking-tight">
+          <motion.div variants={staggerContainer} className="space-y-8 animate-in fade-in slide-in-from-left-8 duration-700">
+            <motion.h1 variants={fadeInUp} className="text-5xl sm:text-6xl font-serif font-bold text-solarized-base01 leading-tight tracking-tight">
               Clinical insight,<br/>
               <span className="text-claude-accent italic font-normal">instantly extracted.</span>
-            </h1>
+            </motion.h1>
             <p className="text-xl text-solarized-base00 leading-relaxed max-w-lg">
               Upload patient history, voice notes, or medical articles. Our Clinical Decision Support System (CDSS) synthesizes the data into actionable intelligence.
             </p>
@@ -191,7 +293,7 @@ export default function Dashboard({ onNavigate }) {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           <div className="animate-in fade-in slide-in-from-right-8 duration-700">
             <div className="glass-card p-10 sm:p-12 flex flex-col items-center justify-center text-center relative overflow-hidden group">
@@ -201,30 +303,40 @@ export default function Dashboard({ onNavigate }) {
               <div className="flex bg-claude-hover p-1.5 rounded-xl mb-10 z-10 border border-claude-border/50">
                  <button 
                    onClick={() => setInputType('file')} 
-                   className={cn("px-6 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2", inputType === 'file' ? "bg-white shadow-sm text-claude-accent" : "text-solarized-base1 hover:text-solarized-base00")}
+                   className={cn("px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2", inputType === 'file' ? "bg-white shadow-sm text-claude-accent" : "text-solarized-base1 hover:text-solarized-base00")}
                  >
-                   <Upload className="w-4 h-4" /> File / Audio
+                   <Upload className="w-4 h-4" /> File / Image
                  </button>
                  <button 
                    onClick={() => setInputType('url')} 
-                   className={cn("px-6 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2", inputType === 'url' ? "bg-white shadow-sm text-claude-accent" : "text-solarized-base1 hover:text-solarized-base00")}
+                   className={cn("px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2", inputType === 'url' ? "bg-white shadow-sm text-claude-accent" : "text-solarized-base1 hover:text-solarized-base00")}
                  >
                    <LinkIcon className="w-4 h-4" /> Web Link
+                 </button>
+                 <button 
+                   onClick={() => setInputType('dictate')} 
+                   className={cn("px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2", inputType === 'dictate' ? "bg-white shadow-sm text-claude-accent" : "text-solarized-base1 hover:text-solarized-base00")}
+                 >
+                   <Mic className="w-4 h-4" /> Dictate
                  </button>
               </div>
 
               <div className="w-24 h-24 bg-claude-bg rounded-full flex items-center justify-center mb-6 shadow-inner-soft border border-claude-border z-10 group-hover:scale-105 transition-transform duration-500">
-                {inputType === 'file' ? <Upload className="w-10 h-10 text-claude-accent" /> : <LinkIcon className="w-10 h-10 text-claude-accent" />}
+                {inputType === 'file' && <Upload className="w-10 h-10 text-claude-accent" />}
+                {inputType === 'url' && <LinkIcon className="w-10 h-10 text-claude-accent" />}
+                {inputType === 'dictate' && <Mic className="w-10 h-10 text-claude-accent" />}
               </div>
               <h2 className="text-2xl font-serif font-bold mb-8 text-solarized-base01 z-10">
-                {inputType === 'file' ? "Upload Medical Data" : "Analyze Web Source"}
+                {inputType === 'file' && "Upload Medical Data"}
+                {inputType === 'url' && "Analyze Web Source"}
+                {inputType === 'dictate' && "Real-Time Dictation"}
               </h2>
               
-              {inputType === 'file' ? (
+              {inputType === 'file' && (
                 <div className="flex flex-col items-center gap-4 w-full justify-center z-10">
                   <label className="cursor-pointer bg-white text-solarized-base01 px-8 py-4 rounded-xl font-medium transition-all shadow-sm border border-claude-border hover:border-claude-accent hover:text-claude-accent flex items-center justify-center w-full">
-                    <span className="truncate max-w-[200px]">{file ? file.name : "Choose PDF or Audio"}</span>
-                    <input type="file" className="hidden" accept=".pdf,.mp3,.wav,.m4a" onChange={handleFileChange} />
+                    <span className="truncate max-w-[200px]">{file ? file.name : "Choose PDF, Image, Audio"}</span>
+                    <input type="file" className="hidden" accept=".pdf,.mp3,.wav,.m4a,.jpg,.jpeg,.png" onChange={handleFileChange} />
                   </label>
                   
                   {file && (
@@ -236,7 +348,8 @@ export default function Dashboard({ onNavigate }) {
                     </button>
                   )}
                 </div>
-              ) : (
+              )}
+              {inputType === 'url' && (
                 <div className="flex flex-col items-center gap-4 w-full justify-center z-10">
                   <input 
                     type="url" 
@@ -255,6 +368,33 @@ export default function Dashboard({ onNavigate }) {
                   )}
                 </div>
               )}
+              {inputType === 'dictate' && (
+                 <div className="flex flex-col items-center gap-4 w-full justify-center z-10">
+                   <button 
+                     onClick={toggleDictation}
+                     className={cn("w-full py-4 rounded-xl font-medium shadow-sm transition-all flex items-center justify-center gap-2 border", 
+                       isDictating ? "bg-solarized-red/10 border-solarized-red text-solarized-red animate-pulse" : "bg-white border-claude-border hover:border-claude-accent text-solarized-base01"
+                     )}
+                   >
+                     {isDictating ? <><Mic className="w-5 h-5" /> Stop Recording...</> : <><Mic className="w-5 h-5" /> Start Dictation</>}
+                   </button>
+                   
+                   {dictatedText && (
+                     <div className="w-full text-left bg-white border border-claude-border rounded-xl p-4 text-sm text-solarized-base00 h-32 overflow-y-auto">
+                       {dictatedText}
+                     </div>
+                   )}
+
+                   {dictatedText && !isDictating && (
+                     <button 
+                       onClick={() => handleSampleCase(dictatedText)}
+                       className="bg-claude-accent hover:bg-[#c96647] text-white px-8 py-4 rounded-xl font-medium transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 w-full animate-in fade-in zoom-in duration-300"
+                     >
+                       Analyze Dictation <ArrowRight className="w-5 h-5" />
+                     </button>
+                   )}
+                 </div>
+               )}
               {error && (
                 <div className="mt-6 bg-solarized-red/10 text-solarized-red px-4 py-3 rounded-lg flex items-start gap-2 text-sm font-medium w-full text-left z-10 animate-in fade-in">
                   <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" /> <span>{error}</span>
@@ -289,29 +429,29 @@ export default function Dashboard({ onNavigate }) {
               <p className="text-lg text-solarized-base1 max-w-2xl mx-auto">Our CDSS engine is tailored to empower everyone in the healthcare ecosystem.</p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="glass-card p-8 group hover:-translate-y-2 transition-transform duration-500">
+            <motion.div variants={staggerContainer} initial="hidden" whileInView="show" viewport={{ once: true, margin: "-100px" }} className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <motion.div variants={fadeInUp} whileHover={{ scale: 1.02 }} className="glass-card p-8 group transition-transform duration-500">
                  <div className="w-12 h-12 bg-solarized-blue/10 text-solarized-blue rounded-xl flex items-center justify-center mb-6 group-hover:bg-solarized-blue group-hover:text-white transition-colors">
                    <Stethoscope className="w-6 h-6" />
                  </div>
                  <h3 className="text-xl font-bold text-solarized-base01 mb-3">For Physicians</h3>
                  <p className="text-solarized-base00 leading-relaxed">Save hours of manual charting. Instantly extract a chronological timeline, flag critical contraindications, and get AI-assisted Differential Diagnoses.</p>
-              </div>
-              <div className="glass-card p-8 group hover:-translate-y-2 transition-transform duration-500 delay-100">
+              </motion.div>
+              <motion.div variants={fadeInUp} whileHover={{ scale: 1.02 }} className="glass-card p-8 group transition-transform duration-500 delay-100">
                  <div className="w-12 h-12 bg-solarized-green/10 text-solarized-green rounded-xl flex items-center justify-center mb-6 group-hover:bg-solarized-green group-hover:text-white transition-colors">
                    <BookOpen className="w-6 h-6" />
                  </div>
                  <h3 className="text-xl font-bold text-solarized-base01 mb-3">For Medical Students</h3>
                  <p className="text-solarized-base00 leading-relaxed">Learn clinical reasoning faster. See exactly how symptoms map to triage severity scores and explore the AI's reasoning behind every diagnosis.</p>
-              </div>
-              <div className="glass-card p-8 group hover:-translate-y-2 transition-transform duration-500 delay-200">
+              </motion.div>
+              <motion.div variants={fadeInUp} whileHover={{ scale: 1.02 }} className="glass-card p-8 group transition-transform duration-500 delay-200">
                  <div className="w-12 h-12 bg-solarized-violet/10 text-solarized-violet rounded-xl flex items-center justify-center mb-6 group-hover:bg-solarized-violet group-hover:text-white transition-colors">
                    <Activity className="w-6 h-6" />
                  </div>
                  <h3 className="text-xl font-bold text-solarized-base01 mb-3">For Patients</h3>
                  <p className="text-solarized-base00 leading-relaxed">Demystify your health data. Complex medical jargon is automatically translated into a plain-English glossary, empowering you for your next visit.</p>
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
           </div>
 
           {/* Pricing Section */}
@@ -375,7 +515,115 @@ export default function Dashboard({ onNavigate }) {
             </div>
           </div>
 
-        </div>
+          {/* 1. Trusted By Banner */}
+          <div className="py-12 border-y border-claude-border/50 bg-claude-bg/30 text-center animate-in fade-in slide-in-from-bottom-8 duration-700 delay-500">
+            <p className="text-sm font-bold text-solarized-base1 uppercase tracking-widest mb-8">Trusted by visionary teams at</p>
+            <div className="flex flex-wrap justify-center items-center gap-12 sm:gap-20 opacity-60 grayscale hover:grayscale-0 transition-all duration-700">
+              <div className="flex items-center gap-2 font-serif text-xl font-bold text-solarized-base01"><Building className="w-6 h-6" /> Mount Sinai</div>
+              <div className="flex items-center gap-2 font-serif text-xl font-bold text-solarized-base01"><Building className="w-6 h-6" /> Mayo Clinic</div>
+              <div className="flex items-center gap-2 font-serif text-xl font-bold text-solarized-base01"><Building className="w-6 h-6" /> Cleveland Clinic</div>
+              <div className="flex items-center gap-2 font-serif text-xl font-bold text-solarized-base01"><Building className="w-6 h-6" /> Johns Hopkins</div>
+            </div>
+          </div>
+
+          {/* 2. Security & HIPAA Banner */}
+          <div className="mt-32 max-w-5xl mx-auto glass-card p-12 bg-[#002b36] border-[#073642] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-500 relative overflow-hidden">
+            <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-solarized-cyan/10 rounded-full blur-3xl"></div>
+            <div className="flex flex-col md:flex-row items-center gap-12 relative z-10">
+              <div className="flex-1 space-y-6">
+                <div className="flex items-center gap-3">
+                  <ShieldCheck className="w-8 h-8 text-solarized-cyan" />
+                  <h2 className="text-3xl font-serif font-bold text-[#fdf6e3]">Enterprise-Grade Security</h2>
+                </div>
+                <p className="text-[#93a1a1] text-lg leading-relaxed">
+                  Patient data is your most critical asset. We treat it with uncompromising security. Our systems are fully HIPAA compliant, utilizing military-grade AES-256 encryption at rest and TLS 1.3 in transit.
+                </p>
+                <div className="flex gap-6 pt-4">
+                  <div className="flex items-center gap-2 text-[#eee8d5] font-medium"><Lock className="w-5 h-5 text-solarized-cyan" /> AES-256</div>
+                  <div className="flex items-center gap-2 text-[#eee8d5] font-medium"><Server className="w-5 h-5 text-solarized-cyan" /> Zero Retention</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Testimonials */}
+          <div className="mt-32 max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700 delay-500">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl font-serif font-bold text-solarized-base01 mb-4">Loved by Healthcare Professionals</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="glass-card p-8 relative">
+                <div className="flex gap-1 mb-4 text-solarized-yellow"><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/></div>
+                <p className="text-solarized-base00 italic mb-6">"ClinicaSummary has cut my charting time in half. The accuracy of the AI-generated differential diagnoses is genuinely mind-blowing."</p>
+                <div className="font-bold text-solarized-base01">Dr. Sarah Jenkins</div>
+                <div className="text-sm text-solarized-base1">Chief Medical Officer</div>
+              </div>
+              <div className="glass-card p-8 relative">
+                <div className="flex gap-1 mb-4 text-solarized-yellow"><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/></div>
+                <p className="text-solarized-base00 italic mb-6">"As a medical student, seeing how the AI maps symptoms to triage severity scores has accelerated my clinical reasoning immensely."</p>
+                <div className="font-bold text-solarized-base01">Michael Chen</div>
+                <div className="text-sm text-solarized-base1">M3 Student</div>
+              </div>
+              <div className="glass-card p-8 relative">
+                <div className="flex gap-1 mb-4 text-solarized-yellow"><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/></div>
+                <p className="text-solarized-base00 italic mb-6">"I finally understand my own health data. The interactive chat lets me ask questions about my lab results without feeling embarrassed."</p>
+                <div className="font-bold text-solarized-base01">Emily R.</div>
+                <div className="text-sm text-solarized-base1">Patient</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Interactive FAQ */}
+          <div className="mt-32 max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700 delay-500">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-serif font-bold text-solarized-base01">Frequently Asked Questions</h2>
+            </div>
+            <div className="space-y-4">
+              {[
+                {q: "Is ClinicaSummary HIPAA compliant?", a: "Yes, our enterprise plans are fully HIPAA compliant. We sign BAAs, enforce AES-256 encryption, and maintain a strict zero-data-retention policy for API calls."},
+                {q: "Does this replace a doctor?", a: "Absolutely not. ClinicaSummary is a Clinical Decision Support System (CDSS) designed to augment and assist medical professionals, not replace their critical judgment."},
+                {q: "What file types can I upload?", a: "We support PDF medical records, audio files (.mp3, .wav) for dictation, and images (.jpg, .png) for multimodal visual analysis."}
+              ].map((faq, idx) => (
+                <div key={idx} className="glass-card overflow-hidden">
+                  <button 
+                    className="w-full p-6 text-left flex items-center justify-between font-bold text-solarized-base01 hover:text-claude-accent transition-colors"
+                    onClick={() => setActiveFaq(activeFaq === idx ? null : idx)}
+                  >
+                    {faq.q}
+                    {activeFaq === idx ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                  </button>
+                  {activeFaq === idx && (
+                    <div className="px-6 pb-6 text-solarized-base00 leading-relaxed animate-in slide-in-from-top-2">
+                      {faq.a}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 5. Final CTA */}
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ type: "spring", stiffness: 300, damping: 24 }} className="mt-32 mb-10 max-w-4xl mx-auto text-center glass-card p-16 bg-claude-hover border-claude-border relative overflow-hidden">
+            <div className="absolute top-0 right-0 -mt-16 -mr-16 w-48 h-48 bg-claude-accent/10 rounded-full blur-3xl"></div>
+            <h2 className="text-4xl font-serif font-bold text-solarized-base01 mb-6 relative z-10">Ready to modernize your workflow?</h2>
+            <p className="text-xl text-solarized-base00 mb-10 max-w-2xl mx-auto relative z-10">Join thousands of healthcare professionals who have already cut their charting time in half.</p>
+            <div className="flex justify-center gap-4 relative z-10">
+              <button 
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="bg-claude-accent hover:bg-[#c96647] text-white px-8 py-4 rounded-xl font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+              >
+                Start Free Trial <Zap className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={() => onNavigate && onNavigate('contact')}
+                className="bg-white border border-claude-border text-solarized-base01 hover:bg-claude-bg px-8 py-4 rounded-xl font-bold transition-all shadow-sm"
+              >
+                Contact Sales
+              </button>
+            </div>
+          </motion.div>
+
+        </motion.div>
       )}
 
       {loading && (
@@ -457,6 +705,32 @@ export default function Dashboard({ onNavigate }) {
                     </div>
                     <h3 className="text-2xl font-serif font-bold text-solarized-base01">Differential Diagnosis</h3>
                   </div>
+
+                  <div className="h-64 w-full mb-8">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={getChartData(data.differential_diagnosis)} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                        <XAxis type="number" domain={[0, 100]} hide />
+                        <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 13, fill: isDark ? '#93a1a1' : '#586e75' }} axisLine={false} tickLine={false} />
+                        <Tooltip cursor={{fill: 'transparent'}} content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            return (
+                              <div className="bg-white dark:bg-[#002b36] p-4 border border-claude-border shadow-lg rounded-xl">
+                                <p className="font-bold text-solarized-base01 dark:text-solarized-base2 mb-1">{payload[0].payload.fullCondition}</p>
+                                <p className="text-sm text-solarized-base1">Probability: <span className="font-bold">{payload[0].payload.probability}</span></p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }} />
+                        <Bar dataKey="probabilityValue" radius={[0, 6, 6, 0]} barSize={24}>
+                          {getChartData(data.differential_diagnosis).map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
                   <div className="space-y-4">
                     {data.differential_diagnosis.map((ddx, idx) => (
                       <div key={idx} className="bg-claude-bg/50 p-4 rounded-xl border border-claude-border relative overflow-hidden">
@@ -494,44 +768,7 @@ export default function Dashboard({ onNavigate }) {
                 </div>
               )}
 
-              {data.action_plan && data.action_plan.length > 0 && (
-                <div className="glass-card p-8">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-solarized-green/10 rounded-lg text-solarized-green">
-                      <ListChecks className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-2xl font-serif font-bold text-solarized-base01">Action Plan</h3>
-                  </div>
-                  <ul className="space-y-4">
-                    {data.action_plan.map((item, idx) => (
-                      <li key={idx} className="flex items-start gap-3 text-solarized-base00">
-                        <CheckCircle2 className="w-5 h-5 text-solarized-green flex-shrink-0 mt-0.5" />
-                        <span className="leading-relaxed">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {data.follow_up_questions && data.follow_up_questions.length > 0 && (
-                <div className="glass-card p-8 bg-claude-accent/5 border-claude-accent/20">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-claude-accent/10 rounded-lg text-claude-accent">
-                      <MessageCircleQuestion className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-2xl font-serif font-bold text-solarized-base01">Consultation Guide</h3>
-                  </div>
-                  <p className="text-sm text-solarized-base1 mb-4">Suggested questions for your next appointment:</p>
-                  <ul className="space-y-4">
-                    {data.follow_up_questions.map((item, idx) => (
-                      <li key={idx} className="flex items-start gap-3 text-solarized-base00 bg-white p-4 rounded-xl border border-claude-border shadow-sm">
-                        <span className="font-serif font-bold text-claude-accent text-lg leading-none mt-0.5">Q.</span>
-                        <span className="leading-relaxed font-medium">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              {/* End of Left Column */}
               
             </div>
 
@@ -598,6 +835,96 @@ export default function Dashboard({ onNavigate }) {
                   </div>
                 </div>
               )}
+
+              {/* Moved blocks to balance the grid beautifully */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mt-8">
+                {/* Short tags/lists go side-by-side */}
+                {data.recommended_medications && data.recommended_medications.length > 0 && (
+                  <div className="glass-card p-8 bg-solarized-cyan/5 border-solarized-cyan/20">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="p-2 bg-solarized-cyan/10 rounded-lg text-solarized-cyan">
+                        <Pill className="w-6 h-6" />
+                      </div>
+                      <h3 className="text-2xl font-serif font-bold text-solarized-base01">Recommended Medications</h3>
+                    </div>
+                    <div className="flex flex-col gap-4">
+                      {data.recommended_medications.map((med, idx) => (
+                        <div key={idx} className="bg-white dark:bg-solarized-base03 border border-claude-border dark:border-solarized-base01/30 p-4 rounded-xl shadow-sm flex items-center gap-3">
+                          <div className="w-2 h-2 rounded-full bg-solarized-cyan shrink-0"></div>
+                          <span className="font-bold text-solarized-base00 dark:text-solarized-base1">{med}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {data.icd10_codes && data.icd10_codes.length > 0 && (
+                  <div className="glass-card p-8">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="p-2 bg-solarized-blue/10 rounded-lg text-solarized-blue">
+                        <FileCode2 className="w-6 h-6" />
+                      </div>
+                      <h3 className="text-xl font-serif font-bold text-solarized-base01">ICD-10 Billing Codes</h3>
+                    </div>
+                    <div className="space-y-3">
+                      {data.icd10_codes.map((code, idx) => {
+                        const parts = code.split(' - ');
+                        const codeNumber = parts[0];
+                        const codeDesc = parts.slice(1).join(' - ') || code;
+                        return (
+                          <div key={idx} className="flex flex-col xl:flex-row xl:items-center justify-between p-3 rounded-lg bg-claude-bg/50 dark:bg-[#002b36] border border-claude-border dark:border-solarized-base01/30">
+                            <span className="text-sm font-medium text-solarized-base00 dark:text-solarized-base1 mb-1 xl:mb-0">{codeDesc}</span>
+                            <span className="font-mono font-bold text-solarized-blue bg-solarized-blue/10 px-3 py-1 rounded-md text-sm">{codeNumber}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Text-heavy lists take full width */}
+              <div className="mt-8 space-y-8">
+                {data.action_plan && data.action_plan.length > 0 && (
+                  <div className="glass-card p-8">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="p-2 bg-solarized-green/10 rounded-lg text-solarized-green">
+                        <ListChecks className="w-6 h-6" />
+                      </div>
+                      <h3 className="text-2xl font-serif font-bold text-solarized-base01">Action Plan</h3>
+                    </div>
+                    <ul className="space-y-4">
+                      {data.action_plan.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-3 text-solarized-base00">
+                          <CheckCircle2 className="w-5 h-5 text-solarized-green flex-shrink-0 mt-0.5" />
+                          <span className="leading-relaxed">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {data.follow_up_questions && data.follow_up_questions.length > 0 && (
+                  <div className="glass-card p-8 bg-claude-accent/5 border-claude-accent/20">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="p-2 bg-claude-accent/10 rounded-lg text-claude-accent">
+                        <MessageCircleQuestion className="w-6 h-6" />
+                      </div>
+                      <h3 className="text-2xl font-serif font-bold text-solarized-base01">Consultation Guide</h3>
+                    </div>
+                    <p className="text-sm text-solarized-base1 mb-4">Suggested questions:</p>
+                    <ul className="space-y-4">
+                      {data.follow_up_questions.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-3 text-solarized-base00 bg-white p-4 rounded-xl border border-claude-border shadow-sm">
+                          <span className="font-serif font-bold text-claude-accent text-lg leading-none mt-0.5">Q.</span>
+                          <span className="leading-relaxed font-medium">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              
             </div>
           </div>
 
@@ -651,9 +978,8 @@ export default function Dashboard({ onNavigate }) {
               </button>
             </form>
           </div>
-
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
