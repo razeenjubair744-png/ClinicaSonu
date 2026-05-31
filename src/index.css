@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .glass-card {
+    @apply bg-white border border-claude-border shadow-soft rounded-2xl transition-all duration-300;
+  }
+  .glass-card:hover {
+    @apply shadow-float -translate-y-1;
+  }
+}
+
+body {
+  margin: 0;
+  background-image: radial-gradient(rgba(218, 119, 86, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+@media print {
+  body {
+    background: white !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .glass-card {
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
