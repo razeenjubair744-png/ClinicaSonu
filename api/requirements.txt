@@ -6,3 +6,5 @@ langchain-openai>=0.1.0
 langchain-core>=0.1.40
 pypdf==3.17.1
 beautifulsoup4==4.12.2
+python-dotenv==1.2.1
+requests>=2.31.0

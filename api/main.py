@@ -1,5 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import pypdf
@@ -211,3 +213,26 @@ async def chat_with_document(req: ChatRequest):
 @app.get("/api/health")
 def health_check():
     return {"status": "healthy"}
+
+# Mount React App (Static Files)
+# This allows FastAPI to serve the React frontend in production (Docker)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DIST_DIR = os.path.join(BASE_DIR, "dist")
+assets_dir = os.path.join(DIST_DIR, "assets")
+
+# Mount assets specifically (we create the dir just in case to prevent crash if running locally without build)
+import os
+os.makedirs(assets_dir, exist_ok=True)
+
+app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+@app.get("/{catchall:path}")
+async def serve_spa(catchall: str):
+    file_path = os.path.join(DIST_DIR, catchall)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+    
+    index_path = os.path.join(DIST_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"detail": "Frontend not built yet. Please run 'npm run build'."}

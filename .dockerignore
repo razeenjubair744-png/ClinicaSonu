@@ -1,0 +1,9 @@
+node_modules
+venv
+.env
+.git
+.gitignore
+.vercel
+dist
+__pycache__
+*.pyc
